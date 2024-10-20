@@ -77,6 +77,10 @@ def send_email(email, zip_io, query):
     sender_email = os.environ.get('SENDER_EMAIL')
     sender_password = os.environ.get('SENDER_PASSWORD')
 
+    if not sender_email or not sender_password:
+        app.logger.error("Sender email or password not configured.")
+        return False
+
     msg = MIMEMultipart()
     msg['From'] = sender_email
     msg['To'] = email
