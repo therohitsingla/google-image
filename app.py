@@ -1,16 +1,14 @@
+from flask import Flask, render_template, request, jsonify
 import os
+import io
 import requests
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, flash, redirect, url_for
-from werkzeug.utils import secure_filename
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
 import zipfile
-import logging
-from logging.handlers import RotatingFileHandler
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -78,8 +76,8 @@ def create_zip(images, query):
 
 def send_email(email, zip_file):
     app.logger.info(f"Sending email to: {email}")
-    sender_email = "tikkipikkipikki@gmail.com"
-    sender_password = "ylnf eggx vxnk yzrg"
+    sender_email = os.environ.get('SENDER_EMAIL')
+    sender_password = os.environ.get('SENDER_PASSWORD')
 
     msg = MIMEMultipart()
     msg['From'] = sender_email
@@ -123,38 +121,18 @@ def index():
         image_limit = int(request.form['image_limit'])
         email = request.form['email']
 
-        app.logger.info(f"Processing request - Query: {search_query}, Limit: {image_limit}, Email: {email}")
-
         images = download_images(search_query, image_limit)
         if not images:
-            flash('Failed to download images. Please try again.', 'error')
-            return redirect(url_for('index'))
+            return jsonify({'error': 'Failed to download images. Please try again.'})
 
-        zip_file = create_zip(images, search_query)
-        if not zip_file:
-            flash('Failed to create zip file. Please try again.', 'error')
-            return redirect(url_for('index'))
+        zip_data = create_zip(images)
+        if not zip_data:
+            return jsonify({'error': 'Failed to create zip file. Please try again.'})
 
-        if send_email(email, zip_file):
-            flash('Images have been sent to your email!', 'success')
+        if send_email(email, zip_data, search_query):
+            return jsonify({'success': 'Images have been sent to your email!'})
         else:
-            flash('Failed to send email. Please try again.', 'error')
-
-        # Clean up
-        for image in images:
-            try:
-                os.remove(image)
-                app.logger.info(f"Removed image: {image}")
-            except Exception as e:
-                app.logger.error(f"Error removing image {image}: {e}")
-
-        try:
-            os.remove(zip_file)
-            app.logger.info(f"Removed zip file: {zip_file}")
-        except Exception as e:
-            app.logger.error(f"Error removing zip file {zip_file}: {e}")
-
-        return redirect(url_for('index'))
+            return jsonify({'error': 'Failed to send email. Please try again.'})
 
     return render_template('index.html')
 
