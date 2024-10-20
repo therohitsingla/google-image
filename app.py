@@ -41,14 +41,27 @@ def download_images(query, limit):
     soup = BeautifulSoup(response.text, "html.parser")
     image_tags = soup.find_all("img", limit=limit)
     
+    download_folder = os.path.join(app.config['UPLOAD_FOLDER'], query)
+    if not os.path.exists(download_folder):
+        os.makedirs(download_folder)
+    
     downloaded_images = []
     for i, img_tag in enumerate(image_tags):
         img_url = img_tag.get("src")
+        
+        # Check if URL is valid and starts with 'http' or 'https'
+        if not img_url or not img_url.startswith("http"):
+            app.logger.error(f"Invalid URL for image {i+1}: {img_url}")
+            continue
+        
         try:
             img_data = requests.get(img_url).content
-            img_io = io.BytesIO(img_data)  # Store the image in memory instead of disk
-            downloaded_images.append(img_io)
-            app.logger.info(f"Downloaded image {i+1}")
+            filename = f"{query}_{i+1}.jpg"
+            filepath = os.path.join(download_folder, filename)
+            with open(filepath, "wb") as img_file:
+                img_file.write(img_data)
+            downloaded_images.append(filepath)
+            app.logger.info(f"Downloaded image: {filepath}")
         except Exception as e:
             app.logger.error(f"Could not download image {i+1}: {e}")
     
@@ -56,19 +69,23 @@ def download_images(query, limit):
     return downloaded_images
 
 def create_zip(images, query):
-    app.logger.info(f"Creating zip file for query: {query}")
-    zip_io = io.BytesIO()  # Create a BytesIO object to store the zip data
-    try:
-        with zipfile.ZipFile(zip_io, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for i, img_io in enumerate(images):
-                filename = f"{query}_{i+1}.jpg"
-                zipf.writestr(filename, img_io.getvalue())
-        zip_io.seek(0)  # Reset pointer to the start of the BytesIO object
-        app.logger.info("Zip file created in memory")
-        return zip_io
-    except Exception as e:
-        app.logger.error(f"Error creating zip file: {e}")
-        return None
+    app.logger.info(f"Creating zip for query: {query}")
+    
+    # Create a BytesIO object to hold the zip file in memory
+    zip_buffer = io.BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for image_path in images:
+            # Get the filename from the path and add it to the zip file
+            filename = os.path.basename(image_path)
+            zip_file.write(image_path, arcname=filename)
+    
+    # Seek to the start of the BytesIO object so it can be read later
+    zip_buffer.seek(0)
+    
+    # Return the in-memory zip file content as binary data
+    app.logger.info(f"Zip file created for query: {query}")
+    return zip_buffer.getvalue()
 
 def send_email(email, zip_io, query):
     app.logger.info(f"Sending email to: {email}")
@@ -115,11 +132,11 @@ def index():
         if not images:
             return jsonify({'error': 'Failed to download images. Please try again.'})
 
-        zip_data = create_zip(images)
+        zip_data = create_zip(images, search_query)  # Make sure to pass the query
         if not zip_data:
             return jsonify({'error': 'Failed to create zip file. Please try again.'})
 
-        if send_email(email, zip_data, search_query):
+        if send_email(email, zip_data):
             return jsonify({'success': 'Images have been sent to your email!'})
         else:
             return jsonify({'error': 'Failed to send email. Please try again.'})
