@@ -53,7 +53,7 @@ def download_images(query, limit):
 
             # Try downloading the larger image
             img_data = requests.get(larger_img_url).content
-            if len(img_data) < 100000:  # If the image size is very small, continue
+            if len(img_data) < 5000:  # If the image size is very small, continue
                 app.logger.warning(f"Image {i+1} is too small. Skipping.")
                 continue
 
