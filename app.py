@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import io
-from PIL import Image
 import requests
 from bs4 import BeautifulSoup
 import smtplib
@@ -14,10 +13,6 @@ import zipfile
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-UPLOAD_FOLDER = 'downloads'
-ALLOWED_EXTENSIONS = {'zip'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
 # # Set up logging
 # logging.basicConfig(level=logging.DEBUG)
 # handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
@@ -25,7 +20,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 # handler.setFormatter(formatter)
 # app.logger.addHandler(handler)
-
 
 def download_images(query, limit):
     app.logger.info(f"Downloading images for query: {query}, limit: {limit}")
@@ -72,7 +66,7 @@ def create_zip(images, query):
     zip_buffer.seek(0)
     
     app.logger.info(f"Zip file created for query: {query}")
-    return zip_buffer.getvalue()
+    return zip_buffer
 
 def send_email(email, zip_io, query):
     app.logger.info(f"Sending email to: {email}")
@@ -123,7 +117,7 @@ def index():
         if not zip_data:
             return jsonify({'error': 'Failed to create zip file. Please try again.'})
 
-        if send_email(email, zip_data):
+        if send_email(email, zip_data, search_query):  # Pass search_query
             return jsonify({'success': 'Images have been sent to your email!'})
         else:
             return jsonify({'error': 'Failed to send email. Please try again.'})
