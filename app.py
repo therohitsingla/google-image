@@ -1,7 +1,6 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import io
-from PIL import Image
 import requests
 from bs4 import BeautifulSoup
 import smtplib
@@ -56,6 +55,10 @@ def download_images(query, limit):
     return downloaded_images
 
 def create_zip(images, query):
+    if not images:  # Check if there are images to zip
+        app.logger.error(f"No images to create zip for query: {query}")
+        return None
+    
     app.logger.info(f"Creating zip for query: {query}")
     
     zip_buffer = io.BytesIO()
@@ -112,16 +115,18 @@ def index():
 
         images = download_images(search_query, image_limit)
         if not images:
+            app.logger.error("No images downloaded. Returning error.")
             return jsonify({'error': 'Failed to download images. Please try again.'})
 
         zip_data = create_zip(images, search_query)  # Make sure to pass the query
-        if not zip_data:
+        if zip_data is None:
             return jsonify({'error': 'Failed to create zip file. Please try again.'})
 
         if zip_data and send_email(email, zip_data, search_query):
             return jsonify({'success': 'Images have been sent to your email!'})
         else:
-            return jsonify({'error': 'Failed to create zip file or send email. Please try again.'})
+            app.logger.error("Failed to send email after zip creation.")
+            return jsonify({'error': 'Failed to send email. Please try again.'})
 
     return render_template('index.html')
 
