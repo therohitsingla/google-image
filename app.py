@@ -2,16 +2,16 @@ from flask import Flask, render_template, request, jsonify
 import os
 import io
 import requests
+import zipfile
+from PIL import Image
 from bs4 import BeautifulSoup
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
-import zipfile
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
 
 UPLOAD_FOLDER = 'downloads'
 ALLOWED_EXTENSIONS = {'zip'}
@@ -36,13 +36,9 @@ def download_images(query, limit):
         img_url = img_tag.get("src")
         
         # Check if URL is valid and starts with 'http' or 'https'
-        if not img_url or not img_url.startswith(("http", "https")):
-            # Construct the full URL if it's a relative URL
-            if img_url and img_url.startswith("/"):
-                img_url = f"https://www.google.com{img_url}"  # Adjust based on the domain
-            else:
-                app.logger.error(f"Invalid URL for image {i+1}: {img_url}")
-                continue
+        if not img_url or not img_url.startswith("http"):
+            app.logger.error(f"Invalid URL for image {i+1}: {img_url}")
+            continue
         
         try:
             img_data = requests.get(img_url).content
@@ -55,10 +51,6 @@ def download_images(query, limit):
     return downloaded_images
 
 def create_zip(images, query):
-    if not images:  # Check if there are images to zip
-        app.logger.error(f"No images to create zip for query: {query}")
-        return None
-    
     app.logger.info(f"Creating zip for query: {query}")
     
     zip_buffer = io.BytesIO()
@@ -69,16 +61,16 @@ def create_zip(images, query):
 
     zip_buffer.seek(0)
     
-    app.logger.info(f"Zip file created for query: {query}")
+    app.logger.info(f"Zip file created for query: {query}, size: {len(zip_buffer.getvalue())} bytes")
     return zip_buffer.getvalue()
 
-def send_email(email, zip_io, query):
+def send_email(email, zip_data, query):
     app.logger.info(f"Sending email to: {email}")
-    sender_email = os.environ.get('SENDER_EMAIL')
-    sender_password = os.environ.get('SENDER_PASSWORD')
+    sender_email = os.getenv('SENDER_EMAIL')
+    sender_password = os.getenv('SENDER_PASSWORD')
 
     if not sender_email or not sender_password:
-        app.logger.error("Sender email or password not configured.")
+        app.logger.error("Sender email or password not set in environment variables.")
         return False
 
     msg = MIMEMultipart()
@@ -89,21 +81,30 @@ def send_email(email, zip_io, query):
     body = "Please find attached the images you requested."
     msg.attach(MIMEText(body, 'plain'))
 
-    part = MIMEBase("application", "octet-stream")
-    part.set_payload(zip_io)  # Directly use zip_io
-    encoders.encode_base64(part)
-    part.add_header(
-        "Content-Disposition",
-        f"attachment; filename={query}_images.zip",
-    )
-    msg.attach(part)
+    # Check if zip_data is None or empty
+    if zip_data is None or len(zip_data) == 0:
+        app.logger.error("No zip data to attach to email.")
+        return False
 
     try:
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.send_message(msg)
-        server.quit()
+        part = MIMEBase("application", "octet-stream")
+        part.set_payload(zip_data)
+        encoders.encode_base64(part)
+        part.add_header(
+            "Content-Disposition",
+            f"attachment; filename={query}_images.zip",
+        )
+        msg.attach(part)
+
+        # Log the message content type
+        app.logger.info(f"Email message content type: {msg.get_content_type()}")
+        
+        # Send the email
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        
         app.logger.info("Email sent successfully")
         return True
     except Exception as e:
@@ -119,17 +120,19 @@ def index():
 
         images = download_images(search_query, image_limit)
         if not images:
-            app.logger.error("No images downloaded. Returning error.")
             return jsonify({'error': 'Failed to download images. Please try again.'})
 
-        zip_data = create_zip(images, search_query)  # Make sure to pass the query
-        if zip_data is None:
+        zip_data = create_zip(images, search_query)  # Create zip data
+
+        # Log the zip data length
+        app.logger.info(f"Zip data length: {len(zip_data) if zip_data else 'None'}")
+        
+        if zip_data is None or len(zip_data) == 0:
             return jsonify({'error': 'Failed to create zip file. Please try again.'})
 
-        if zip_data and send_email(email, zip_data, search_query):
+        if send_email(email, zip_data, search_query):
             return jsonify({'success': 'Images have been sent to your email!'})
         else:
-            app.logger.error("Failed to send email after zip creation.")
             return jsonify({'error': 'Failed to send email. Please try again.'})
 
     return render_template('index.html')
