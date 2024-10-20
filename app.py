@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify
 import os
 import io
+from PIL import Image
 import requests
 from bs4 import BeautifulSoup
 import smtplib
@@ -13,13 +14,9 @@ import zipfile
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-# # Set up logging
-# logging.basicConfig(level=logging.DEBUG)
-# handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
-# handler.setLevel(logging.DEBUG)
-# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# handler.setFormatter(formatter)
-# app.logger.addHandler(handler)
+UPLOAD_FOLDER = 'downloads'
+ALLOWED_EXTENSIONS = {'zip'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def download_images(query, limit):
     app.logger.info(f"Downloading images for query: {query}, limit: {limit}")
@@ -40,9 +37,13 @@ def download_images(query, limit):
         img_url = img_tag.get("src")
         
         # Check if URL is valid and starts with 'http' or 'https'
-        if not img_url or not img_url.startswith("http"):
-            app.logger.error(f"Invalid URL for image {i+1}: {img_url}")
-            continue
+        if not img_url or not img_url.startswith(("http", "https")):
+            # Construct the full URL if it's a relative URL
+            if img_url and img_url.startswith("/"):
+                img_url = f"https://www.google.com{img_url}"  # Adjust based on the domain
+            else:
+                app.logger.error(f"Invalid URL for image {i+1}: {img_url}")
+                continue
         
         try:
             img_data = requests.get(img_url).content
@@ -66,7 +67,7 @@ def create_zip(images, query):
     zip_buffer.seek(0)
     
     app.logger.info(f"Zip file created for query: {query}")
-    return zip_buffer
+    return zip_buffer.getvalue()
 
 def send_email(email, zip_io, query):
     app.logger.info(f"Sending email to: {email}")
@@ -82,7 +83,7 @@ def send_email(email, zip_io, query):
     msg.attach(MIMEText(body, 'plain'))
 
     part = MIMEBase("application", "octet-stream")
-    part.set_payload(zip_io.getvalue())
+    part.set_payload(zip_io)  # Directly use zip_io
     encoders.encode_base64(part)
     part.add_header(
         "Content-Disposition",
@@ -117,10 +118,10 @@ def index():
         if not zip_data:
             return jsonify({'error': 'Failed to create zip file. Please try again.'})
 
-        if send_email(email, zip_data, search_query):  # Pass search_query
+        if zip_data and send_email(email, zip_data, search_query):
             return jsonify({'success': 'Images have been sent to your email!'})
         else:
-            return jsonify({'error': 'Failed to send email. Please try again.'})
+            return jsonify({'error': 'Failed to create zip file or send email. Please try again.'})
 
     return render_template('index.html')
 
