@@ -10,8 +10,12 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from dotenv import load_dotenv  # Add this line
+
+load_dotenv()  # Add this line
 
 app = Flask(__name__)
+app.secret_key = 'your_secret_key_here'
 
 UPLOAD_FOLDER = 'downloads'
 ALLOWED_EXTENSIONS = {'zip'}
