@@ -37,14 +37,10 @@ def download_images(query, limit):
     if response.status_code != 200:
         app.logger.error(f"Failed to retrieve images. Status code: {response.status_code}")
         return None
-    
+
     soup = BeautifulSoup(response.text, "html.parser")
     image_tags = soup.find_all("img", limit=limit)
-    
-    download_folder = os.path.join(app.config['UPLOAD_FOLDER'], query)
-    if not os.path.exists(download_folder):
-        os.makedirs(download_folder)
-    
+
     downloaded_images = []
     for i, img_tag in enumerate(image_tags):
         img_url = img_tag.get("src")
@@ -56,34 +52,25 @@ def download_images(query, limit):
         
         try:
             img_data = requests.get(img_url).content
-            filename = f"{query}_{i+1}.jpg"
-            filepath = os.path.join(download_folder, filename)
-            with open(filepath, "wb") as img_file:
-                img_file.write(img_data)
-            downloaded_images.append(filepath)
-            app.logger.info(f"Downloaded image: {filepath}")
+            downloaded_images.append((f"{query}_{i+1}.jpg", img_data))  # Store filename and data
+            app.logger.info(f"Downloaded image {i+1}")
         except Exception as e:
             app.logger.error(f"Could not download image {i+1}: {e}")
-    
+
     app.logger.info(f"Downloaded {len(downloaded_images)} images")
     return downloaded_images
 
 def create_zip(images, query):
     app.logger.info(f"Creating zip for query: {query}")
     
-    # Create a BytesIO object to hold the zip file in memory
     zip_buffer = io.BytesIO()
     
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for image_path in images:
-            # Get the filename from the path and add it to the zip file
-            filename = os.path.basename(image_path)
-            zip_file.write(image_path, arcname=filename)
-    
-    # Seek to the start of the BytesIO object so it can be read later
+        for filename, img_data in images:
+            zip_file.writestr(filename, img_data)  # Write image data directly to zip
+
     zip_buffer.seek(0)
     
-    # Return the in-memory zip file content as binary data
     app.logger.info(f"Zip file created for query: {query}")
     return zip_buffer.getvalue()
 
