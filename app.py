@@ -18,12 +18,12 @@ ALLOWED_EXTENSIONS = {'zip'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
-handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
-handler.setLevel(logging.DEBUG)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-app.logger.addHandler(handler)
+# logging.basicConfig(level=logging.DEBUG)
+# handler = RotatingFileHandler('app.log', maxBytes=10000, backupCount=1)
+# handler.setLevel(logging.DEBUG)
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# handler.setFormatter(formatter)
+# app.logger.addHandler(handler)
 
 def download_images(query, limit):
     app.logger.info(f"Downloading images for query: {query}, limit: {limit}")
