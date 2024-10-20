@@ -5,17 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Downloader</title>
     <link rel="stylesheet" href="/static/styles.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <!-- Add jQuery -->
+</head>
 <body>
     <div class="container">
         <h1>Bulk Image Downloader</h1>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
-        <form action="{{ url_for('index') }}" method="POST">
+
+        <!-- This will display the success or error message dynamically -->
+        <div id="message"></div> 
+
+        <form id="imageForm"> <!-- Removed the 'action' and 'method' to handle it via AJAX -->
             <div class="form-group">
                 <label for="search_query">Search Query:</label>
                 <input type="text" id="search_query" name="search_query" required>
@@ -31,5 +30,26 @@
             <button type="submit" class="submit-button">Download and Send</button>
         </form>
     </div>
+
+    <script>
+        $(document).ready(function() {
+            $('#imageForm').on('submit', function(event) {
+                event.preventDefault(); // Prevent the form from submitting the traditional way
+
+                $.ajax({
+                    type: 'POST',
+                    url: '/', // Send the request to the Flask route
+                    data: $(this).serialize(), // Serialize form data
+                    success: function(response) {
+                        // Update the message div with the success or error message
+                        $('#message').html(`<div class="alert alert-success">${response.success || response.error}</div>`);
+                    },
+                    error: function() {
+                        $('#message').html('<div class="alert alert-danger">An error occurred. Please try again.</div>');
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>
