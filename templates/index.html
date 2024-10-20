@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Downloader</title>
+    <link rel="stylesheet" href="/static/styles.css">
+<body>
+    <div class="container">
+        <h1>Bulk Image Downloader</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <form action="{{ url_for('index') }}" method="POST">
+            <div class="form-group">
+                <label for="search_query">Search Query:</label>
+                <input type="text" id="search_query" name="search_query" required>
+            </div>
+            <div class="form-group">
+                <label for="image_limit">Number of Images:</label>
+                <input type="number" id="image_limit" name="image_limit" min="1" max="100" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address:</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+            <button type="submit" class="submit-button">Download and Send</button>
+        </form>
+    </div>
+</body>
+</html>
