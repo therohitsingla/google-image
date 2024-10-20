@@ -23,6 +23,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 def download_images(query, limit):
     app.logger.info(f"Downloading images for query: {query}, limit: {limit}")
+    
     search_url = f"https://www.google.com/search?q={query}&tbm=isch"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
@@ -36,6 +37,7 @@ def download_images(query, limit):
     image_tags = soup.find_all("img", limit=limit)
 
     downloaded_images = []
+    
     for i, img_tag in enumerate(image_tags):
         img_url = img_tag.get("src")
         
@@ -45,14 +47,24 @@ def download_images(query, limit):
             continue
         
         try:
-            img_data = requests.get(img_url).content
+            # Sometimes the image is a thumbnail; we need to find the full resolution version.
+            # Search for the larger image (if possible)
+            larger_img_url = img_tag.get("data-iurl") or img_url  # Use 'data-iurl' if available
+
+            # Try downloading the larger image
+            img_data = requests.get(larger_img_url).content
+            if len(img_data) < 5000:  # If the image size is very small, continue
+                app.logger.warning(f"Image {i+1} is too small. Skipping.")
+                continue
+
             downloaded_images.append((f"{query}_{i+1}.jpg", img_data))  # Store filename and data
-            app.logger.info(f"Downloaded image {i+1}")
+            app.logger.info(f"Downloaded image {i+1} (size: {len(img_data)} bytes)")
         except Exception as e:
             app.logger.error(f"Could not download image {i+1}: {e}")
 
     app.logger.info(f"Downloaded {len(downloaded_images)} images")
     return downloaded_images
+
 
 def create_zip(images, query):
     app.logger.info(f"Creating zip for query: {query}")
